@@ -15,39 +15,6 @@ hue_activate_scene:
       selector:
         boolean:
 
-# entity service to start/stop a native signaling effect on lights (V2)
-signal:
-  target:
-    entity:
-      domain: light
-      integration: hue
-  fields:
-    signal:
-      required: true
-      example: "on_off_color"
-      selector:
-        select:
-          options:
-            - "no_signal"
-            - "on_off"
-            - "on_off_color"
-            - "alternating"
-          translation_key: signal_type
-    duration:
-      example: 30
-      selector:
-        number:
-          min: 1
-          max: 65534
-          unit_of_measurement: seconds
-    color:
-      example: "[255, 165, 0]"
-      selector:
-        color_rgb:
-    color2:
-      selector:
-        color_rgb:
-
 # entity service to activate a Hue scene (V2)
 activate_scene:
   target:
@@ -77,3 +44,36 @@ activate_scene:
             number:
               min: 1
               max: 255
+
+# entity service to start/stop a native signaling effect on lights (V2)
+signal:
+  target:
+    entity:
+      domain: light
+      integration: hue
+  fields:
+    signal:
+      required: true
+      example: "on_off_color"
+      selector:
+        select:
+          options:
+            - "no_signal"
+            - "on_off"
+            - "on_off_color"
+            - "alternating"
+          translation_key: signal_type
+    duration:
+      example: 30
+      selector:
+        number:
+          min: 1
+          max: 3600
+          unit_of_measurement: seconds
+    color:
+      example: "[255, 165, 0]"
+      selector:
+        color_rgb:
+    color2:
+      selector:
+        color_rgb:
