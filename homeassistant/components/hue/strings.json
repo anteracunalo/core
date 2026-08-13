@@ -225,7 +225,7 @@
         },
         "duration": {
           "name": "Duration",
-          "description": "How long the signal should last. The bridge reverts the light to its previous state afterwards. Defaults to the bridge's default (15 seconds) if not set."
+          "description": "How long the signal should last. The bridge reverts the light to its previous state afterwards. Defaults to 15 seconds."
         },
         "color": {
           "name": "Color",

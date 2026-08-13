@@ -1127,6 +1127,19 @@ async def test_light_signal_service(
 
     assert len(mock_bridge_v2.mock_requests) == 2
     assert mock_bridge_v2.mock_requests[1]["json"]["signaling"]["signal"] == "no_signal"
+    # the bridge requires duration to be present even for no_signal
+    assert mock_bridge_v2.mock_requests[1]["json"]["signaling"]["duration"] == 0
+
+    # signal without explicit duration gets the default duration
+    await hass.services.async_call(
+        "hue",
+        "signal",
+        {ATTR_ENTITY_ID: test_light_id, "signal": "on_off"},
+        blocking=True,
+    )
+
+    assert len(mock_bridge_v2.mock_requests) == 3
+    assert mock_bridge_v2.mock_requests[2]["json"]["signaling"]["duration"] == 15000
 
 
 async def test_light_signal_service_missing_color(

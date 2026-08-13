@@ -14,6 +14,8 @@ from homeassistant.util import color as color_util
 
 from ..const import DOMAIN
 
+DEFAULT_SIGNAL_DURATION = 15  # seconds
+
 
 def normalize_hue_brightness(brightness: float | None) -> float | None:
     """Return calculated brightness values."""
@@ -74,9 +76,14 @@ def build_signaling(
             ColorFeaturePut(xy=ColorPoint(*color_util.color_RGB_to_xy(*rgb)))
             for rgb in rgb_colors
         ]
+    if signal == Signal.NO_SIGNAL:
+        # the bridge schema requires `duration` even for no_signal (value is ignored)
+        duration = 0
+    elif duration is None:
+        duration = DEFAULT_SIGNAL_DURATION
     return SignalingFeaturePut(
         signal=signal,
         # bridge expects milliseconds with a step size of 1 second
-        duration=duration * 1000 if duration is not None else None,
+        duration=duration * 1000,
         colors=colors,
     )
