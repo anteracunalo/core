@@ -6,8 +6,9 @@ from typing import Any, override
 from aiohue import HueBridgeV2
 from aiohue.v2.controllers.events import EventType
 from aiohue.v2.controllers.lights import LightsController
-from aiohue.v2.models.feature import EffectStatus, TimedEffectStatus
-from aiohue.v2.models.light import Light
+from aiohue.v2.models.feature import EffectStatus, Signal, TimedEffectStatus
+from aiohue.v2.models.light import Light, LightPut
+import voluptuous as vol
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -25,14 +26,23 @@ from homeassistant.components.light import (
     filter_supported_color_modes,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 from homeassistant.util import color as color_util
 
 from ..bridge import HueBridge, HueConfigEntry
-from ..const import DOMAIN
+from ..const import (
+    ATTR_COLOR,
+    ATTR_COLOR2,
+    ATTR_DURATION,
+    ATTR_SIGNAL,
+    DOMAIN,
+    SERVICE_SIGNAL,
+)
 from .entity import HueBaseEntity
 from .helpers import (
+    build_signaling,
     normalize_hue_brightness,
     normalize_hue_colortemp,
     normalize_hue_transition,
@@ -44,6 +54,10 @@ FALLBACK_KELVIN = 5800  # halfway
 
 # HA 2025.4 replaced the deprecated effect "None" with HA default "off"
 DEPRECATED_EFFECT_NONE = "None"
+
+VALID_SIGNAL_VALUES = [x.value for x in Signal if x != Signal.UNKNOWN]
+RGB_COLOR_SCHEMA = vol.All(vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 3))
+MAX_SIGNAL_DURATION = 3600  # seconds; the bridge supports up to 65534
 
 
 async def async_setup_entry(
@@ -67,6 +81,23 @@ async def async_setup_entry(
     # register listener for new lights
     config_entry.async_on_unload(
         controller.subscribe(async_add_light, event_filter=EventType.RESOURCE_ADDED)
+    )
+
+    # register the signaling entity service (also handled by grouped lights)
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SIGNAL,
+        {
+            vol.Required(ATTR_SIGNAL): vol.All(
+                vol.In(VALID_SIGNAL_VALUES), vol.Coerce(Signal)
+            ),
+            vol.Optional(ATTR_DURATION): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=MAX_SIGNAL_DURATION)
+            ),
+            vol.Optional(ATTR_COLOR): RGB_COLOR_SCHEMA,
+            vol.Optional(ATTR_COLOR2): RGB_COLOR_SCHEMA,
+        },
+        "async_signal",
     )
 
 
@@ -343,4 +374,27 @@ class HueLight(HueBaseEntity, LightEntity):
             self.controller.set_flash,
             id=self.resource.id,
             short=flash == FLASH_SHORT,
+        )
+
+    async def async_signal(
+        self,
+        signal: Signal,
+        duration: int | None = None,
+        color: tuple[int, int, int] | None = None,
+        color2: tuple[int, int, int] | None = None,
+    ) -> None:
+        """Start (or stop) a signaling effect on the light.
+
+        Signaling is handled by the bridge as a temporary overlay:
+        the light automatically returns to its previous state when the
+        signal ends (duration elapsed or `no_signal` sent).
+        """
+        await self.bridge.async_request_call(
+            self.controller.update,
+            self.resource.id,
+            LightPut(
+                signaling=build_signaling(
+                    self.resource, signal, duration, color, color2
+                )
+            ),
         )
