@@ -6,8 +6,8 @@ from typing import Any, override
 from aiohue import HueBridgeV2
 from aiohue.v2.controllers.events import EventType
 from aiohue.v2.controllers.lights import LightsController
-from aiohue.v2.models.feature import EffectStatus, TimedEffectStatus
-from aiohue.v2.models.light import Light
+from aiohue.v2.models.feature import EffectStatus, Signal, TimedEffectStatus
+from aiohue.v2.models.light import Light, LightPut
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -33,6 +33,7 @@ from ..bridge import HueBridge, HueConfigEntry
 from ..const import DOMAIN
 from .entity import HueBaseEntity
 from .helpers import (
+    build_signaling,
     normalize_hue_brightness,
     normalize_hue_colortemp,
     normalize_hue_transition,
@@ -343,4 +344,27 @@ class HueLight(HueBaseEntity, LightEntity):
             self.controller.set_flash,
             id=self.resource.id,
             short=flash == FLASH_SHORT,
+        )
+
+    async def async_signal(
+        self,
+        signal: Signal,
+        duration: int | None = None,
+        color: tuple[int, int, int] | None = None,
+        color2: tuple[int, int, int] | None = None,
+    ) -> None:
+        """Start (or stop) a signaling effect on the light.
+
+        Signaling is handled by the bridge as a temporary overlay:
+        the light automatically returns to its previous state when the
+        signal ends (duration elapsed or `no_signal` sent).
+        """
+        await self.bridge.async_request_call(
+            self.controller.update,
+            self.resource.id,
+            LightPut(
+                signaling=build_signaling(
+                    self.resource, signal, duration, color, color2
+                )
+            ),
         )

@@ -35,6 +35,9 @@
     },
     "hue_activate_scene": {
       "service": "mdi:palette"
+    },
+    "signal": {
+      "service": "mdi:alarm-light"
     }
   }
 }

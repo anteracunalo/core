@@ -214,6 +214,46 @@
         }
       },
       "name": "Activate scene"
+    },
+    "signal": {
+      "name": "Signal",
+      "description": "Starts or stops a temporary signaling effect (blinking) on Hue lights, using the bridge's native signaling feature. The bridge automatically restores the previous light state when the signal ends, even if Home Assistant is unavailable.",
+      "fields": {
+        "signal": {
+          "name": "Signal type",
+          "description": "The signaling effect to apply. Use 'no_signal' to stop an active signal early."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long the signal should last. The bridge reverts the light to its previous state afterwards. Defaults to the bridge's default (15 seconds) if not set."
+        },
+        "color": {
+          "name": "Color",
+          "description": "Color for the 'on_off_color' signal and first color for the 'alternating' signal."
+        },
+        "color2": {
+          "name": "Second color",
+          "description": "Second color for the 'alternating' signal."
+        }
+      }
+    }
+  },
+  "selector": {
+    "signal_type": {
+      "options": {
+        "no_signal": "Stop signaling",
+        "on_off": "Blink (current color)",
+        "on_off_color": "Blink color",
+        "alternating": "Alternate two colors"
+      }
+    }
+  },
+  "exceptions": {
+    "signal_not_supported": {
+      "message": "The light does not support the {signal} signal."
+    },
+    "signal_missing_color": {
+      "message": "The {signal} signal requires {required} color(s) to be provided."
     }
   }
 }

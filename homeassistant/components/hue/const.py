@@ -19,6 +19,12 @@ ATTR_SCENE_NAME = "scene_name"
 ATTR_TRANSITION = "transition"
 ATTR_DYNAMIC = "dynamic"
 
+SERVICE_SIGNAL = "signal"
+ATTR_SIGNAL = "signal"
+ATTR_DURATION = "duration"
+ATTR_COLOR = "color"
+ATTR_COLOR2 = "color2"
+
 
 # V1 API SPECIFIC CONSTANTS ##################
 

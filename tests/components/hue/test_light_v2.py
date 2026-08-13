@@ -3,6 +3,8 @@
 from copy import deepcopy
 from unittest.mock import Mock
 
+import pytest
+
 from homeassistant.components.light import (
     ATTR_EFFECT,
     DOMAIN as LIGHT_DOMAIN,
@@ -10,6 +12,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_ON, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.util import color as color_util
 from homeassistant.util.json import JsonArrayType
@@ -1075,3 +1078,106 @@ async def test_light_with_zero_mirek(
     # Should fall back to defaults instead of crashing
     assert test_light.attributes["max_color_temp_kelvin"] == 6535
     assert test_light.attributes["min_color_temp_kelvin"] == 2000
+
+
+async def test_light_signal_service(
+    hass: HomeAssistant, mock_bridge_v2: Mock, v2_resources_test_data: JsonArrayType
+) -> None:
+    """Test calling the hue.signal service on a light."""
+    test_data = deepcopy(v2_resources_test_data)
+    resource = next(
+        x for x in test_data if x["id"] == "3a6710fa-4474-4eba-b533-5e6e72968feb"
+    )
+    resource["signaling"] = {
+        "signal_values": ["no_signal", "on_off", "on_off_color", "alternating"]
+    }
+    await mock_bridge_v2.api.load_test_data(test_data)
+
+    await setup_platform(hass, mock_bridge_v2, Platform.LIGHT)
+
+    test_light_id = "light.test_room_hue_light_with_color_temperature_only"
+
+    # start an on_off_color signal
+    await hass.services.async_call(
+        "hue",
+        "signal",
+        {
+            ATTR_ENTITY_ID: test_light_id,
+            "signal": "on_off_color",
+            "duration": 30,
+            "color": [255, 165, 0],
+        },
+        blocking=True,
+    )
+
+    assert len(mock_bridge_v2.mock_requests) == 1
+    assert mock_bridge_v2.mock_requests[0]["method"] == "put"
+    signaling = mock_bridge_v2.mock_requests[0]["json"]["signaling"]
+    assert signaling["signal"] == "on_off_color"
+    assert signaling["duration"] == 30000
+    assert len(signaling["colors"]) == 1
+
+    # stop the signal early
+    await hass.services.async_call(
+        "hue",
+        "signal",
+        {ATTR_ENTITY_ID: test_light_id, "signal": "no_signal"},
+        blocking=True,
+    )
+
+    assert len(mock_bridge_v2.mock_requests) == 2
+    assert mock_bridge_v2.mock_requests[1]["json"]["signaling"]["signal"] == "no_signal"
+
+
+async def test_light_signal_service_missing_color(
+    hass: HomeAssistant, mock_bridge_v2: Mock, v2_resources_test_data: JsonArrayType
+) -> None:
+    """Test that the hue.signal service requires colors for alternating signal."""
+    test_data = deepcopy(v2_resources_test_data)
+    resource = next(
+        x for x in test_data if x["id"] == "3a6710fa-4474-4eba-b533-5e6e72968feb"
+    )
+    resource["signaling"] = {
+        "signal_values": ["no_signal", "on_off", "on_off_color", "alternating"]
+    }
+    await mock_bridge_v2.api.load_test_data(test_data)
+
+    await setup_platform(hass, mock_bridge_v2, Platform.LIGHT)
+
+    test_light_id = "light.test_room_hue_light_with_color_temperature_only"
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "hue",
+            "signal",
+            {
+                ATTR_ENTITY_ID: test_light_id,
+                "signal": "alternating",
+                "color": [255, 0, 0],
+            },
+            blocking=True,
+        )
+
+    assert len(mock_bridge_v2.mock_requests) == 0
+
+
+async def test_light_signal_service_not_supported(
+    hass: HomeAssistant, mock_bridge_v2: Mock, v2_resources_test_data: JsonArrayType
+) -> None:
+    """Test that the hue.signal service raises for lights without signaling support."""
+    await mock_bridge_v2.api.load_test_data(v2_resources_test_data)
+
+    await setup_platform(hass, mock_bridge_v2, Platform.LIGHT)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "hue",
+            "signal",
+            {
+                ATTR_ENTITY_ID: "light.hue_light_with_color_only",
+                "signal": "on_off",
+            },
+            blocking=True,
+        )
+
+    assert len(mock_bridge_v2.mock_requests) == 0
